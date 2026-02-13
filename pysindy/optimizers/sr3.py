@@ -6,9 +6,9 @@ from scipy.linalg import cho_factor
 from scipy.linalg import cho_solve
 from sklearn.exceptions import ConvergenceWarning
 
-from ..utils import capped_simplex_projection
-from ..utils import get_prox
-from ..utils import get_regularization
+from pysindy.utils import capped_simplex_projection
+from pysindy.utils import get_prox
+from pysindy.utils import get_regularization
 from .base import BaseOptimizer
 
 

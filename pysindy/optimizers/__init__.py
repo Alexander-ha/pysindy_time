@@ -5,6 +5,7 @@ from .sr3 import SR3
 from .ssr import SSR
 from .stlsq import STLSQ
 from .wrapped_optimizer import WrappedOptimizer
+from .fixed_base import FixedCoefficientOptimizer
 
 try:
     from ._constrained_sr3 import ConstrainedSR3
@@ -34,6 +35,7 @@ except (ImportError, NameError):
 
 __all__ = [
     "BaseOptimizer",
+    "FixedCoefficientOptimizer",
     "EnsembleOptimizer",
     "WrappedOptimizer",
     "SR3",
