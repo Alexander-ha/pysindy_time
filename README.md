@@ -28,6 +28,8 @@ pip install -e .
 make install
 
 source pysindy_env/bin/activate
+
+make fixed_run #for example
 ```
 
 
