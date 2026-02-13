@@ -6,13 +6,12 @@ PySINDy: Time-robust
 > :warning: This project is under active development, for stable version please, visit original version:
 https://github.com/dynamicslab/pysindy.
 
-Special installation procedure
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+## Special installation procedure
 * Classical procedure:
 
-```
-git clone git@github.com:Alexander-ha/pysindy_time.git \\
-cd pysindy_time \\
+```bash
+git clone git@github.com:Alexander-ha/pysindy_time.git 
+cd pysindy_time 
 python3 -m venv pysindy_env
 
 source pysindy_env/bin/activate
@@ -25,7 +24,7 @@ pip install -e .
 
 
 * Using venv and makefile (**Recommended**):
-```
+``` bash
 make install
 
 source pysindy_env/bin/activate
@@ -33,7 +32,7 @@ source pysindy_env/bin/activate
 
 
 * via Docker:
-```
+``` bash
 docker build -t pysindy-time .
 
 docker run pysindy-time
