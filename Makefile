@@ -1,8 +1,9 @@
 .PHONY: help install clean test examples
 
 VENV_NAME = pysindy_env
-PYTHON = $(VENV_NAME)/bin/python
-PIP = $(VENV_NAME)/bin/pip
+PYTHON = python
+PIP = pip
+
 
 help:
 	@echo "Available:"
