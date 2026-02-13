@@ -11,8 +11,8 @@ Special installation procedure
 * Classical procedure:
 
 ```
-git clone git@github.com:Alexander-ha/pysindy_time.git
-cd pysindy_time
+git clone git@github.com:Alexander-ha/pysindy_time.git \\
+cd pysindy_time \\
 python3 -m venv pysindy_env
 
 source pysindy_env/bin/activate
