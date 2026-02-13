@@ -10,7 +10,7 @@ Special installation procedure
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 * Classical procedure:
 
-```bash
+```
 git clone git@github.com:Alexander-ha/pysindy_time.git
 cd pysindy_time
 python3 -m venv pysindy_env
@@ -25,12 +25,15 @@ pip install -e .
 
 
 * Using venv and makefile (**Recommended**):
+```
 make install
+
 source pysindy_env/bin/activate
+```
 
 
 * via Docker:
-```bash
+```
 docker build -t pysindy-time .
 
 docker run pysindy-time
