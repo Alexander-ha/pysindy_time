@@ -1,4 +1,4 @@
-PySINDy
+PySINDy: Time-robust
 =========
 
 |BuildCI| |RTD| |PyPI| |Codecov| |JOSS1| |JOSS2| |DOI|
@@ -8,7 +8,13 @@ https://github.com/dynamicslab/pysindy.
 
 Special installation procedure
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+* Classical procedure:
 
+
+* Using venv:
+
+
+* via Docker:
 
 
 ________________________________
