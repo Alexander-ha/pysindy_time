@@ -10,7 +10,7 @@ https://github.com/dynamicslab/pysindy.
 * Classical procedure:
 
 ```bash
-git clone git@github.com:Alexander-ha/pysindy_time.git 
+git clone git@github.com:Alexander-ha/pysindy_time.git  #(or git clone https://github.com/Alexander-ha/pysindy_time.git)
 cd pysindy_time 
 python3 -m venv pysindy_env
 
