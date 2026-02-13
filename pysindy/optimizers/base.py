@@ -17,10 +17,10 @@ from sklearn.utils.extmath import safe_sparse_dot
 from sklearn.utils.validation import check_is_fitted
 from sklearn.utils.validation import check_X_y
 
-from .._typing import Float2D
-from .._typing import FloatDType
-from ..utils import AxesArray
-from ..utils import drop_nan_samples
+from pysindy._typing import Float2D
+from pysindy._typing import FloatDType
+from pysindy.utils import AxesArray
+from pysindy.utils import drop_nan_samples
 
 NFeat = NewType("NFeat", int)
 NTarget = NewType("NTarget", int)
@@ -272,6 +272,7 @@ class BaseOptimizer(LinearRegression, _BaseOptimizer):
                     .coef_
                 )
         self.coef_ = coef
+
 
 
 class EnsembleOptimizer(BaseOptimizer):
