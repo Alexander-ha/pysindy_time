@@ -3,7 +3,8 @@ PySINDy
 
 |BuildCI| |RTD| |PyPI| |Codecov| |JOSS1| |JOSS2| |DOI|
 
-> :warning: This project is under active development, for stable version please, visit original version [PySINDY](https://github.com/dynamicslab/pysindy)
+> :warning: This project is under active development, for stable version please, visit original version:
+[PySINDY](https://github.com/dynamicslab/pysindy).
 
 Special installation procedure
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
