@@ -1,0 +1,40 @@
+==================================================
+DIAGNOSTICS
+==================================================
+
+Target 0 TV coefficients:
+  Shape: (800, 1)
+  Mean: -1.937893
+  Std: 0.000055
+  Min: -1.937986
+  Max: -1.937792
+  Non-zero: 800 / 800
+
+Target 1 TV coefficients:
+  Shape: (800, 1)
+  Mean: 1.152600
+  Std: 0.000062
+  Min: 1.152496
+  Max: 1.152712
+  Non-zero: 800 / 800
+
+Constant coefficients:
+[[0. 0. 0. 0. 0. 0.]
+ [0. 0. 0. 0. 0. 0.]]
+  L2 norm: 0.000000
+  Non-zero: 0 / 12
+
+Sample prediction decomposition:
+  True value: [-5.99999205  0.49999983]
+  Constant part: [0. 0.]
+  TV part: [-5.96819133  0.48925716]
+  Total: [-5.96819133  0.48925716]
+Coef time-varying x0:
+max: -1.9377919612645231, min: -1.9379861054573504, mean: -1.9378925716617215
+[[0. 0. 0. 0. 0. 0.]
+ [0. 0. 0. 0. 0. 0.]]
+Target 0: t_values_ length = 800
+Target 1: t_values_ length = 800
+Training residual norm: 0.6167458546381258
+R^2 x: 0.9891
+R^2 y: 0.9990

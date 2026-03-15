@@ -1,0 +1,47 @@
+Final model learning with new h-params...
+
+==================================================
+DIAGNOSTICS
+==================================================
+
+Target 0 TV coefficients:
+  Shape: (500, 1)
+  Mean: -1.946765
+  Std: 0.069025
+  Min: -2.036328
+  Max: -1.755354
+  Non-zero: 500 / 500
+
+Target 1 TV coefficients:
+  Shape: (500, 1)
+  Mean: 1.035173
+  Std: 0.208120
+  Min: 0.700051
+  Max: 1.463620
+  Non-zero: 500 / 500
+
+Constant coefficients:
+[[0. 0. 0. 0. 0. 0.]
+ [0. 0. 0. 0. 0. 0.]]
+  L2 norm: 0.000000
+  Non-zero: 0 / 12
+
+Sample prediction decomposition:
+  True value: [-5.99999205  0.49999983]
+  Constant part: [0. 0.]
+  TV part: [-6.00200666  0.51778273]
+  Total: [-6.00200666  0.51778273]
+Coef time-varying x0:
+max: -1.7553537514993949, min: -2.036328053875061, mean: -1.9467645371615614
+[[0. 0. 0. 0. 0. 0.]
+ [0. 0. 0. 0. 0. 0.]]
+Target 0: t_values_ length = 500
+Target 1: t_values_ length = 500
+Training residual norm: 3.6623862658539017
+R^2 x: 0.6033
+R^2 y: 0.2539
+
+best params for LassoTimeRegression:
+Traceback (most recent call last):
+  File "/root/pysindy/examples/time_recover.py", line 320, in <module>
+    print(f"  bandwidth: {best_params['bandwidth']}")
