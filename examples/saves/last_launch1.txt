@@ -1,0 +1,50 @@
+==================================================
+DIAGNOSTICS
+==================================================
+
+Target 0 TV coefficients:
+  Shape: (900, 1)
+  Mean: -3.963406
+  Std: 0.008182
+  Min: -3.977707
+  Max: -3.948014
+  Non-zero: 900 / 900
+
+Target 1 TV coefficients:
+  Shape: (900, 1)
+  Mean: 1.398593
+  Std: 0.001109
+  Min: 1.396605
+  Max: 1.400630
+  Non-zero: 900 / 900
+
+Constant coefficients:
+[[0. 0. 0. 0. 0. 0.]
+ [0. 0. 0. 0. 0. 0.]]
+  L2 norm: 0.000000
+  Non-zero: 0 / 12
+
+Sample prediction decomposition:
+  True value: [-11.99990972   0.99999933]
+  Constant part: [0. 0.]
+  TV part: [-11.63694092   1.01874444]
+  Total: [-11.63694092   1.01874444]
+Coef time-varying x0:
+max: -3.9480135284153883, min: -3.9777066776132544, mean: -3.9634062939649937
+[[0. 0. 0. 0. 0. 0.]
+ [0. 0. 0. 0. 0. 0.]]
+Target 0: t_values_ length = 900
+Target 1: t_values_ length = 900
+Training residual norm: 3.30275714193883
+R^2 x: -1.9734
+R^2 y: 0.9992
+
+best params for LassoTimeRegression:
+Traceback (most recent call last):
+  File "/root/pysindy/examples/time_recover.py", line 320, in <module>
+    print(f"  bandwidth: {best_params['bandwidth']}")
+                          ~~~~~~~~~~~^^^^^^^^^^^^^
+TypeError: 'NoneType' object is not subscriptable
+(venv_ps) root@b197e19ffb29:~/pysind
+y/examples# python3 time_recover.py
+Feature names: ['1', 'x0', 'x1', 'x0^2', 'x0 x1', 'x1^2']

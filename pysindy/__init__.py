@@ -38,6 +38,7 @@ from .optimizers import SR3
 from .optimizers import SSR
 from .optimizers import STLSQ
 from .optimizers import EnsembleOptimizer
+from .SINDY_timevar.regressors.time_regressor import LassoTimeRegression
 
 try:
     from .optimizers import ConstrainedSR3
@@ -73,4 +74,5 @@ __all__ = [
     "optimizers",
     "deeptime",
     "utils",
+    "SINDY_timevar"
 ]
