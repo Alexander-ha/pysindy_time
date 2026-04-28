@@ -7,6 +7,11 @@ from sklearn.utils.validation import check_X_y
 from sklearn.linear_model import LinearRegression
 from pysindy.optimizers.base import _preprocess_data, _normalize_features
 from pysindy.SINDY_timevar.regressors.time_regressor import LassoTimeRegression
+from pysindy.SINDY_timevar.model_selector.gcv_tv import OutSampleCVSelector
+from types import SimpleNamespace
+from scipy.interpolate import interp1d
+from scipy.interpolate import UnivariateSpline
+
 
 
 class FixedCoefficientOptimizer:
@@ -28,7 +33,18 @@ class FixedCoefficientOptimizer:
     tv_optimizer : Optional[LassoTimeRegression]
         pre‑configured TV optimizer.
     no_normalization_for_fixeds : Optional[bool]
-        if True, fixed coefficients are not denormalized (only relevant if normalize_columns=True).
+        if True, fixed coefficients are not denormalized (only relevant if normalize_columns=True)
+    model_selector : Optional[OutSampleCVSelector] 
+        selects models for different bandwidth parameter in time-varying case
+    init_conds : Optional[np.ndarray]
+        Initial conditions on time-varying coefficients to start the system
+    options : Optional[dict] 
+        could be broadcaster in following way:
+        - use_selector : [bool] flag for selection
+        - use_for_each : [bool] if use_selector is True then uses adaptive bandwidth selection.
+        - selector_method: 'grid', 'newton', 'bfgs', 'ICI' - different methods to find bandwidth.
+        [Warning!] use_for_each shows better perfomance only in very rare cases(extremelly varying coefficients)
+        in current implementation, except the ICI method, it automatically applies adaptive bandwidth. Should be reviewed and modified. Recommendation: use default method for global bandwidth.
     """
     def __init__(self, base_optimizer: BaseOptimizer,
                  fixed_coefs: Optional[np.ndarray] = None,
@@ -36,24 +52,55 @@ class FixedCoefficientOptimizer:
                  time_varying_coefs: Optional[np.ndarray] = None,
                  tv_optimizer_params: Optional[dict] = None,
                  tv_optimizer: Optional[LassoTimeRegression] = None,
-                 no_normalization_for_fixeds: Optional[bool] = True):
+                 no_normalization_for_fixeds: Optional[bool] = True,
+                 model_selector: Optional[OutSampleCVSelector] = None,
+                 init_conds: Optional[np.ndarray] = None,
+                 options: Optional[dict] = None,
+                 procopts: Optional[dict] = None, 
+                 noise_level = 0.0, auto_preprocess = False):
+        
         self.base_optimizer = copy.deepcopy(base_optimizer)
         self.fixed_coefs = fixed_coefs
         self.fixed_values = fixed_values
         self.time_varying_coefs = time_varying_coefs
         self.no_normalization_for_fixeds = no_normalization_for_fixeds
         self._is_fitted = False
-        self.max_iter = 50
+        self.max_iter = 100
+        self.model_selector = model_selector
+        self.base_optimizer_class = base_optimizer.__class__
+        self.base_optimizer_params = base_optimizer.get_params()
+        self.noise_level = noise_level
 
+        self.init_conds = init_conds
+        default_options = {'selector_method': 'grid', 'use_selector': False, 
+                           'use_for_each': False, 'smooth_coefs': False, 'use_time_meanICI':False, 'hmin':0.3,
+                             'hmax':2.0, 'thresholdICI':2.5, 'subinterval': 1, 'bootstrap':30}
+        preprocessor_defoptions = {'time_end': 1.0, 'time_start': 0.0, 'step': 0.1, 
+                           's': 0, 'X': None}
+        self.preprocessor_options = SimpleNamespace(**(preprocessor_defoptions | (procopts or {})))
+        self.options = SimpleNamespace(**(default_options | (options or {})))
         if tv_optimizer is not None:
             self.tv_optimizer = tv_optimizer
         else:
             tv_optimizer_params = tv_optimizer_params or {}
             self.tv_optimizer = LassoTimeRegression(**tv_optimizer_params)
+        self.auto_preprocess=auto_preprocess
+
+    def auto_preprocessor(self):
+        X_tv = self.preprocessor_options.X
+        noise_std = np.std(self.preprocessor_options.X)
+        x_smooth=np.zeros_like(X_tv); x_dot_smooth=np.zeros_like(X_tv)
+        t=np.arange(self.preprocessor_options.time_start, self.preprocessor_options.time_end, self.preprocessor_options.step)
+        for j in range(X_tv.shape[1]):
+            spl=UnivariateSpline(t,X_tv[:,j],s=self.preprocessor_options.s)
+            x_smooth[:,j]=spl(t); x_dot_smooth[:,j]=spl.derivative()(t)
+        return x_dot_smooth
+
+    #def prepareXYnormalized(self, )
+
 
     def _init_fix_mask(self, coef_shape: Tuple[int, int]):
         """Initialization of both fixed and time‑varying masks."""
-        # Fixed mask
         if self.fixed_coefs is None:
             self.fixed_mask_ = np.zeros(coef_shape, dtype=bool)
             self.fixed_values_ = None
@@ -101,6 +148,7 @@ class FixedCoefficientOptimizer:
         """
         x_arr = np.asarray(x_)
         y_arr = np.asarray(y)
+        
         if x_arr.ndim == 2:
             x_axes = {"ax_sample": 0, "ax_coord": 1}
         elif x_arr.ndim == 3:
@@ -120,20 +168,18 @@ class FixedCoefficientOptimizer:
         y = AxesArray(y_arr, y_axes)
 
         x_, y = drop_nan_samples(x_, y)
+        if self.auto_preprocess:
+            y = self.auto_preprocessor()
         x_, y = check_X_y(x_, y, accept_sparse=[], y_numeric=True, multi_output=True)
-
         x, y, X_offset, y_offset, _, sample_weight_sqrt = _preprocess_data(
             x_, y, fit_intercept=False, copy=self.base_optimizer.copy_X,
             sample_weight=sample_weight)
-
         if t is None:
             t = np.arange(x.shape[0])
         self.t_ = np.asarray(t)
 
         if y.ndim == 1:
             y = y.reshape(-1, 1)
-
-
 
         coef_shape = (y.shape[1], x.shape[1])
         self._init_fix_mask(coef_shape)
@@ -157,43 +203,163 @@ class FixedCoefficientOptimizer:
         self.tv_models_ = [None] * n_targets
         self.tv_coefs_ = [None] * n_targets
         self.tv_biases_ = [None] * n_targets
+        h_arr = []
 
+        if self.options.use_selector:
+            for k in range(n_targets):
+                tv_idx = self.tv_mask_[k]
+                if not np.any(tv_idx):
+                    h_arr.append(None)
+                    continue
 
+                y_temp = y[:, k].copy()
+                fixed_idx = self.fixed_mask_[k]
+                if np.any(fixed_idx):
+                    y_temp -= x_normed[:, fixed_idx] @ self.coef_[k, fixed_idx]
+                temp_tv = copy.deepcopy(self.tv_optimizer)
+                temp_tv.fit_all(x_normed[:, tv_idx], y_temp, t_list=self.t_)
+
+                selector = OutSampleCVSelector(
+                    temp_tv, x_normed[:, tv_idx], y_temp, t=self.t_,
+                    h_min=self.options.hmin,
+                    h_max=self.options.hmax[k] if isinstance(self.options.hmax, (list, np.ndarray)) else self.options.hmax,
+                    thresholdICI=self.options.thresholdICI, subinterval = self.options.subinterval,
+                    timemeanICI=self.options.use_time_meanICI,bootstrap = self.options.bootstrap
+                )
+                best_h, _ = selector.optimize_all(method=self.options.selector_method)
+                h_arr.append(best_h)
+                if isinstance(best_h, np.ndarray):
+                    print(f"Target {k}: selected variable bandwidth (mean={np.mean(best_h):.4f})")
+                else:
+                    print(f"Target {k}: selected bandwidth = {best_h:.4f}")
+
+        self.t_models = [None] * n_targets
         for iteration in range(self.max_iter):
+            max_change = 0.0
+
             for k in range(n_targets):
                 fixed_idx = self.fixed_mask_[k]
                 tv_idx = self.tv_mask_[k]
                 const_idx = ~(fixed_idx | tv_idx)
-                y_k = y[:, k].copy()
-                if np.any(fixed_idx):
-                    y_k -= x_normed[:, fixed_idx] @ self.coef_[k, fixed_idx]
+                if not np.any(const_idx):
+                    continue
 
+                tv_pred = np.zeros(x_normed.shape[0])
                 if np.any(tv_idx) and self.tv_models_[k] is not None:
-                    tv_contrib = np.array([
-                        self.tv_models_[k].predict(ti, x_normed[i, tv_idx].reshape(1, -1))
-                        for i, ti in enumerate(self.t_)
-                    ]).flatten()
-                    y_k -= tv_contrib
+                    tv_cols = np.where(tv_idx)[0]
+                    for j, col in enumerate(tv_cols):
+                        model_j = self.tv_models_[k][j]
+                        for i, ti in enumerate(self.t_):
+                            tv_pred[i] += model_j.predict(ti, x_normed[i, [col]].reshape(1, -1)).item()
 
+                y_const = y[:, k].copy()
+                if np.any(fixed_idx):
+                    y_const -= x_normed[:, fixed_idx] @ self.coef_[k, fixed_idx]
+                y_const -= tv_pred
+
+                x_const = x_normed[:, const_idx]
+                opt_k = self.base_optimizer_class(**self.base_optimizer_params)
+                opt_k.fit(x_const, y_const, sample_weight=sample_weight, **reduce_kws)
+                new_coef_const = opt_k.coef_.flatten()
+                change = np.max(np.abs(new_coef_const - self.coef_[k, const_idx]))
+                max_change = max(max_change, change)
+                self.coef_[k, const_idx] = new_coef_const
+
+            for k in range(n_targets):
+                tv_idx = self.tv_mask_[k]
+                if not np.any(tv_idx):
+                    continue
+
+                fixed_idx = self.fixed_mask_[k]
+                const_idx = ~(fixed_idx | tv_idx)
+
+                const_pred = np.zeros(x_normed.shape[0])
+                if np.any(fixed_idx):
+                    const_pred += x_normed[:, fixed_idx] @ self.coef_[k, fixed_idx]
                 if np.any(const_idx):
-                    x_red = x_normed[:, const_idx]
-                    opt_k = copy.deepcopy(self.base_optimizer)
-                    opt_k.fit(x_red, y_k, sample_weight=sample_weight, **reduce_kws)
-                    self.coef_[k, const_idx] = opt_k.coef_.flatten()
+                    const_pred += x_normed[:, const_idx] @ self.coef_[k, const_idx]
+                y_tv = y[:, k] - const_pred
 
-                if np.any(tv_idx):
-                    y_tv = y[:, k].copy()
-                    if np.any(fixed_idx):
-                        y_tv -= x_normed[:, fixed_idx] @ self.coef_[k, fixed_idx]
-                    if np.any(const_idx):
-                        y_tv -= x_normed[:, const_idx] @ self.coef_[k, const_idx]
+                tv_cols = np.where(tv_idx)[0]
+                n_tv = len(tv_cols)
+                T = len(self.t_)
 
-                    tv_model = copy.deepcopy(self.tv_optimizer)
-                    tv_model.fit_all(x_normed[:, tv_idx], y_tv, t_list=self.t_)
-                    self.tv_models_[k] = tv_model
-                    self.tv_coefs_[k] = tv_model.all_W
-                    self.tv_biases_[k] = tv_model.all_b
-                    self.coef_[k, tv_idx] = 0.0
+                if self.options.use_selector and k < len(h_arr) and h_arr[k] is not None:
+                    bw_info = h_arr[k] 
+                else:
+                    bw_info = None
+
+                if self.tv_coefs_[k] is not None and self.tv_coefs_[k].shape == (T, n_tv):
+                    tv_coefs_k = self.tv_coefs_[k].copy()
+                else:
+                    tv_coefs_k = np.zeros((T, n_tv))
+                tv_biases_k = np.zeros(T)
+
+                max_backfit_iters = 10
+                backfit_tol = 1e-6
+                for backfit_iter in range(max_backfit_iters):
+                    max_coef_change = 0.0
+                    for j, col in enumerate(tv_cols):
+                        y_residual = y_tv.copy()
+                        for other_j in range(n_tv):
+                            if other_j == j:
+                                continue
+                            y_residual -= x_normed[:, tv_cols[other_j]] * tv_coefs_k[:, other_j]
+
+                        if bw_info is not None:
+                            if np.isscalar(bw_info):
+                                bw_j = bw_info
+                            elif isinstance(bw_info, np.ndarray) and bw_info.ndim == 1:
+                                bw_j = bw_info[j] 
+                            elif isinstance(bw_info, np.ndarray) and bw_info.ndim == 2:
+                                bw_j = bw_info[j, :]
+
+                        tv_j = copy.deepcopy(self.tv_optimizer)
+                        if self.init_conds is not None:
+                            tv_j.initial_conditions = np.atleast_1d(self.init_conds[k, tv_idx][j])
+                        if bw_j is not None:
+                            tv_j.bandwidth = bw_j
+                        tv_j.fit_all(x_normed[:, [col]], y_residual, t_list=self.t_)
+                        if self.options.smooth_coefs:
+                            tv_j.smooth_coefs()
+
+                        new_coef = tv_j.all_W.flatten()
+                        change = np.max(np.abs(new_coef - tv_coefs_k[:, j]))
+                        max_coef_change = max(max_coef_change, change)
+                        tv_coefs_k[:, j] = new_coef
+                        if backfit_iter == max_backfit_iters - 1:
+                            pass 
+
+                    if max_coef_change < backfit_tol:
+                        break
+
+                tv_models_k = []
+                for j, col in enumerate(tv_cols):
+                    tv_j = copy.deepcopy(self.tv_optimizer)
+                    if self.init_conds is not None:
+                        tv_j.initial_conditions = np.atleast_1d(self.init_conds[k,tv_idx][j])
+                    if bw_info is not None:
+                        if np.isscalar(bw_info):
+                            tv_j.bandwidth = bw_info
+                        elif bw_info.ndim == 1:
+                            tv_j.bandwidth = bw_info[j]
+                        elif bw_info.ndim == 2:
+                            tv_j.bandwidth = bw_info[j, :]
+                            
+                    other_contrib = np.sum(x_normed[:, tv_cols] * tv_coefs_k, axis=1) - x_normed[:, col] * tv_coefs_k[:, j]
+                    y_target = y_tv - other_contrib
+                    tv_j.fit_all(x_normed[:, [col]], y_target, t_list=self.t_)
+
+                    tv_models_k.append(tv_j)
+
+                self.tv_models_[k] = tv_models_k
+                self.tv_coefs_[k] = tv_coefs_k
+                self.tv_biases_[k] = np.zeros(T) 
+                self.coef_[k, tv_idx] = 0.0 
+
+            if max_change < 1e-8:
+                break
+                  
         
 
         self._reconstruct_history([], initial_coef)
@@ -264,13 +430,23 @@ class FixedCoefficientOptimizer:
                 if self.tv_coefs_[i].shape[0] == x_normed.shape[0]:
                     tv_contrib = np.sum(x_normed[:, tv_idx] * self.tv_coefs_[i], axis=1) + self.tv_biases_[i]
                 else:
-                    pass
+                    print("here")
+                    t_old = self.t_models[i] 
+                    n_samples = x_normed.shape[0]
+                    t_new = np.linspace(t_old[0], t_old[-1], n_samples)
+                    interp_w = interp1d(t_old, self.tv_coefs_[i], axis=0, kind='linear', fill_value='extrapolate')
+                    interp_b = interp1d(t_old, self.tv_biases_[i], kind='linear', fill_value='extrapolate')
+                    tv_coef_interp = interp_w(t_new)
+                    tv_bias_interp = interp_b(t_new)
+                    tv_contrib = np.sum(x_normed[:, tv_idx] * tv_coef_interp, axis=1) + tv_bias_interp
+
 
             y_resid = y[:, i] - fixed_contrib - tv_contrib
             lr = LinearRegression(fit_intercept=False)
             lr.fit(x_normed[:, active_const], y_resid)
             coef[i, active_const] = lr.coef_
         self.coef_ = coef
+
     def predict(self, x_, t=None):
         if not self._is_fitted:
             raise ValueError("Model not fitted")
@@ -280,17 +456,18 @@ class FixedCoefficientOptimizer:
             t = np.arange(n_samples)               
         t = np.asarray(t)
 
-        y_pred = x @ self.coef_.T                 
+        y_pred = x @ self.coef_.T
         for k in range(len(self.tv_models_)):
             if self.tv_models_[k] is None:
                 continue
             tv_idx = self.tv_mask_[k]
             if not np.any(tv_idx):
                 continue
-
-            tv_model = self.tv_models_[k]
-            for i, ti in enumerate(t):
-                y_pred[i, k] += tv_model.predict(ti, x[i, tv_idx].reshape(1, -1)).item()
+            tv_cols = np.where(tv_idx)[0]
+            for j, col in enumerate(tv_cols):
+                model_j = self.tv_models_[k][j]
+                for i, ti in enumerate(t):
+                    y_pred[i, k] += model_j.predict(ti, x[i, [col]].reshape(1, -1)).item()
         return y_pred
     
     def score(self, x_, y):

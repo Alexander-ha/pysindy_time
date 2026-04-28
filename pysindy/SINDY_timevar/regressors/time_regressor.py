@@ -1,121 +1,157 @@
-import sys
 import numpy as np
+from scipy.ndimage import gaussian_filter1d
+from sklearn.linear_model import Lasso
 
 class LassoTimeRegression:
-    def __init__(self, learning_rate, iterations, l1_penalty, bandwidth, kernel):
+    def __init__(self, iterations=1000, l1_penalty=0.0, bandwidth=1.0, kernel=None,
+                 initial_conditions=None, tau=10, use_prior=False, fit_intercept=True,
+                 prior_indices=None, intervals=None):
         self.iterations = iterations
         self.l1_penalty = l1_penalty
-        self.bandwidth = bandwidth
+        self.bandwidth = bandwidth               
         self.kernel = kernel
-        self.tol = 1e-6
-
+        self.tol = 1e-4
         self.all_W = None
         self.all_b = None
         self.t_values_ = None
+        self.initial_conditions = initial_conditions
+        self.tau = tau
+        self.use_prior = use_prior
+        self.fit_intercept = fit_intercept
+        self.prior_indices = prior_indices if prior_indices is not None else [0]
+        self.intervals = intervals
 
-    def gen_weighter(self, t_vals, H):
-        def weighter(t):
-            u = np.abs(t_vals - t) / H
-            wcap = self.kernel(u)
-            S = np.sum(wcap)
-            if S == 0:
-                return np.ones_like(t_vals) / len(t_vals)
-            return H * wcap / S
-        return weighter
+    def _preprocess_bandwidth(self, t_list):
+        if np.isscalar(self.bandwidth):
+            bw = np.full(len(t_list), self.bandwidth, dtype=float)
+        else:
+            bw = np.asarray(self.bandwidth, dtype=float)
+            if bw.ndim != 1 or len(bw) != len(t_list):
+                raise ValueError("bandwidth must be scalar or 1d array with len T")
+        if self.intervals is not None and self.intervals > 1:
+            T = len(t_list)
+            edges = np.linspace(0, T, self.intervals + 1).astype(int)
+            bw_smoothed = np.empty(T)
+            for i in range(self.intervals):
+                idx = slice(edges[i], edges[i+1])
+                bw_smoothed[idx] = np.mean(bw[idx])
+            bw = bw_smoothed
+        return bw
 
-    def _fit_one(self, X, Y, weights, lambda_eff):
-        T, n = X.shape
-        W = np.zeros(n)
-        b = 0.0
+    def _compute_weights(self, t, t_array, h_t):
+        u = np.abs(t_array - t) / h_t
+        w = self.kernel(u)
+        S = np.sum(w)
+        if S < 1e-12:
+            return np.ones(len(t_array)) / len(t_array)
+        return w / S
 
-        for epoch in range(self.iterations):
-            pred = X @ W + b
-            resid = Y - pred
+    def _augment_with_prior(self, X, Y, weights, time_idx):
+        if (not self.use_prior or self.initial_conditions is None 
+            or self.tau <= 0 or time_idx not in self.prior_indices):
+            return X, Y, weights
 
-            wres = np.sum(weights * resid)
-            sum_weights = np.sum(weights)
-            if sum_weights > 0:
-                b_new = wres / sum_weights +b
-            else:
-                b_new = 0.0
+        n_features = X.shape[1]
+        tau_sqrt = np.sqrt(self.tau)
 
-            if np.abs(b_new - b) > self.tol:
-                b = b_new
-                pred = X @ W + b
-                resid = Y - pred
+        X_prior = np.eye(n_features) * tau_sqrt
+        Y_prior = self.initial_conditions * tau_sqrt
+        weights_prior = np.ones(n_features)
 
-            max_change = 0.0
-            for j in range(n):
-                resid_partial = resid + W[j] * X[:, j]
-                rho_j = np.sum(weights * X[:, j] * resid_partial)
-                z_j = np.sum(weights * X[:, j] ** 2)
-                if z_j < 1e-12:
-                    continue
+        X_aug = np.vstack([X, X_prior])
+        Y_aug = np.concatenate([Y, Y_prior])
+        weights_aug = np.concatenate([weights, weights_prior])
+        return X_aug, Y_aug, weights_aug
 
-                # Soft-thresholding
-                if rho_j > lambda_eff:
-                    W_new = (rho_j - lambda_eff) / z_j
-                elif rho_j < -lambda_eff:
-                    W_new = (rho_j + lambda_eff) / z_j
+    def _fit_one_sklearn(self, X, Y, weights, lambda_eff, time_idx):
+        X_proc, Y_proc, w_proc = self._augment_with_prior(X, Y, weights, time_idx)
+        n_samples = X_proc.shape[0]
+        sw = np.sqrt(w_proc)
+        Xw = X_proc * sw[:, np.newaxis]
+        Yw = Y_proc * sw
+
+        if self.l1_penalty <= 0:
+            if Xw.shape[1] == 1 and not self.fit_intercept:
+                x = Xw[:, 0]
+                num = np.dot(x, Yw)
+                den = np.dot(x, x)
+                if den < 1e-12:
+                    W_val = 0.0
                 else:
-                    W_new = 0.0
+                    W_val = num / den
+                return np.array([W_val]), 0.0
+            else:
+                X_design = Xw
+                if self.fit_intercept:
+                    X_design = np.column_stack([Xw, np.ones(n_samples)])
+                try:
+                    coef = np.linalg.lstsq(X_design, Yw, rcond=None)[0]
+                except np.linalg.LinAlgError:
+                    reg = 1e-8 * np.eye(X_design.shape[1])
+                    coef = np.linalg.solve(X_design.T @ X_design + reg, X_design.T @ Yw)
+                if self.fit_intercept:
+                    return coef[:-1], coef[-1]
+                else:
+                    return coef, 0.0
 
-                change = np.abs(W_new - W[j])
-                if change > max_change:
-                    max_change = change
-
-                if change > 0:
-                    old_Wj = W[j]
-                    W[j] = W_new
-                    pred += (W_new - old_Wj) * X[:, j]
-                    resid = Y - pred
-
-            if max_change < self.tol:
-                break
-
-        return W, b
+        alpha = lambda_eff / (2.0 * n_samples) if n_samples > 0 else lambda_eff
+        model = Lasso(alpha=alpha, fit_intercept=self.fit_intercept,
+                      max_iter=self.iterations, tol=self.tol, selection='cyclic')
+        model.fit(Xw, Yw)
+        if self.fit_intercept:
+            return model.coef_, model.intercept_
+        else:
+            return model.coef_, 0.0
 
     def fit_all(self, X, Y, t_list=None):
-        T, n = X.shape
+        T = X.shape[0]
         if t_list is None:
             t_list = np.arange(T)
-        
-        self.t_vals_ = np.asarray(t_list)
-        self.t_values_ = self.t_vals_
-        
-        weighter = self.gen_weighter(self.t_vals_, self.bandwidth)
-        weights_matrix = np.array([weighter(t) for t in t_list])
-        lambda_eff = self.l1_penalty / self.bandwidth
-        
-        all_W = np.zeros((len(t_list), n))
-        all_b = np.zeros(len(t_list))
+        self.t_values_ = np.asarray(t_list)
+        bw_array = self._preprocess_bandwidth(self.t_values_)
+        if np.isscalar(self.bandwidth):
+            lambda_eff = self.l1_penalty / self.bandwidth if self.bandwidth > 0 else self.l1_penalty
+            lambda_eff_vec = np.full(len(t_list), lambda_eff)
+        else:
+            lambda_eff_vec = self.l1_penalty / np.maximum(bw_array, 1e-12) 
+
+        n_features = X.shape[1]
+        self.all_W = np.zeros((len(t_list), n_features))
+        self.all_b = np.zeros(len(t_list))
 
         for idx, t in enumerate(t_list):
-            weights = weights_matrix[idx]
-            if np.sum(weights) == 0:
-                all_W[idx] = 0
-                all_b[idx] = 0
-            else:
-                W, b = self._fit_one(X, Y, weights, lambda_eff)
-                all_W[idx] = W
-                all_b[idx] = b
-
-        self.all_W = all_W
-        self.all_b = all_b
+            h_t = bw_array[idx]
+            weights = self._compute_weights(t, self.t_values_, h_t)
+            W, b = self._fit_one_sklearn(X, Y, weights, lambda_eff_vec[idx], time_idx=idx)
+            self.all_W[idx] = W
+            self.all_b[idx] = b
         return self
 
-    def predict(self, t, X):
-        X = np.asarray(X)   
-        if self.all_W is None or self.all_b is None:
-            raise RuntimeError("model wasn't fitted, call fit_all().")
+    def projected_smoothing(self, data, sigma, constraints, n_iterations=10):
+        smoothed = data.copy()
+        for _ in range(n_iterations):
+            if data.ndim == 1:
+                smoothed = gaussian_filter1d(smoothed, sigma=sigma/2)
+            else:
+                for j in range(data.shape[1]):
+                    smoothed[:, j] = gaussian_filter1d(smoothed[:, j], sigma=sigma/2)
+            for idx, value in constraints.items():
+                smoothed[idx] = value
+        return smoothed
 
+    def smooth_coefs(self):
+        constraints_W = {0: self.all_W[0]}
+        constraints_b = {0: self.all_b[0]}
+        sigma = np.mean(self.bandwidth) / 5
+        self.all_W = self.projected_smoothing(self.all_W, sigma=sigma, constraints=constraints_W)
+        self.all_b = self.projected_smoothing(self.all_b, sigma=sigma, constraints=constraints_b)
+
+    def predict(self, t, X):
+        if self.all_W is None:
+            raise RuntimeError("Model not fitted")
         idx = np.argmin(np.abs(self.t_values_ - t))
         W = self.all_W[idx]
         b = self.all_b[idx]
-        
-        single = False
         if X.ndim == 1:
             X = X.reshape(1, -1)
-            single = True
-        y_pred = X @ W + b
-        return y_pred.item() if single else y_pred
+        return (X @ W + b).item() if X.ndim == 1 else X @ W + b
