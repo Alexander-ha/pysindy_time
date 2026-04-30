@@ -55,30 +55,33 @@ init_conds[1, 0] = 0.0067
 
 kernel = lambda u: 0.75 * (1 - u**2) * (np.abs(u) <= 1)
 
-bandwidths = [0.7, 0.5]
-
 model = FixedCoefficientOptimizer(
     base_optimizer=STLSQ(threshold=1e-8, normalize_columns=False),
     fixed_coefs=fixed_coefs,
     fixed_values=fixed_values,
     time_varying_coefs=time_varying_coefs,
     tv_optimizer=LassoTimeRegression(
-        iterations=2000, l1_penalty=0.0, bandwidth=bandwidths[0],
+        iterations=2000, l1_penalty=0.0, bandwidth=[0.4755, 0.9244],
         kernel=kernel, fit_intercept=False,
         use_prior=True, tau=100.0, prior_indices=[0]
     ),
     no_normalization_for_fixeds=True,
     auto_preprocess=False,
     init_conds=init_conds,
-    options={'smooth_coefs': True, 'use_selector': False}
+    options={    'use_selector': False,
+    'selector_method': 'ICI',
+    'use_time_meanICI': True,
+    'smooth_coefs': False,
+    'hmin': 0.15,
+    'hmax': [0.4, 0.95],
+    'thresholdICI': 3.5,
+    'bootstrap': 40}
 )
-
-model._bandwidths = bandwidths
 
 original_fit = model.fit
 def patched_fit(x_, y, t=None, sample_weight=None, **reduce_kws):
     return original_fit(x_, y, t, sample_weight, **reduce_kws)
-model.max_iter = 120
+model.max_iter = 1000
 model.fit = patched_fit
 model.fit(Theta, x_dot_smooth, t=t)
 

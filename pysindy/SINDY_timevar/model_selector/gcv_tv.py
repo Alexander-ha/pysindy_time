@@ -44,7 +44,23 @@ class OutSampleCVSelector:
         W, b = self.model._fit_one_sklearn(self.X, self.y, weights, lambda_eff, time_idx=0)
         self.model.bandwidth = original_bandwidth
         return W
-
+    def compute_std_local(self, time_moment, bandwidth):
+        t_array = self.model.t_values_
+        idx = np.argmin(np.abs(t_array - time_moment))
+        
+        half = max(5, int(bandwidth / (2 * (t_array[1] - t_array[0]))))
+        start = max(0, idx - half)
+        end = min(len(t_array), idx + half)
+        
+        coefs = []
+        for i in range(start, end, max(1, (end-start)//10)):
+            W = self.estimate_coefs(t_array[i], bandwidth)
+            coefs.append(W)
+        
+        if len(coefs) < 3:
+            return np.ones(self.n) * 0.01
+        
+        return np.std(coefs, axis=0)
     def compute_std_bootstrap(self, time_moment, bandwidth, n_bootstrap=50):
         try:
             original_bandwidth = self.model.bandwidth
@@ -118,7 +134,7 @@ class OutSampleCVSelector:
             for h_idx, h in enumerate(h_grider):
                 try:
                     coefs = self.estimate_coefs(t, h)
-                    stds = self.compute_std_bootstrap(t, h, n_bootstrap=n_bootstrap)
+                    stds = self.compute_std_local(t, h)
                     coefs_by_h.append(coefs)
                     stds_by_h.append(stds)
                 except Exception as e:
