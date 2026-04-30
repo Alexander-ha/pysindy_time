@@ -110,7 +110,7 @@ model = FixedCoefficientOptimizer(
     time_varying_coefs=time_varying_coefs,
     tv_optimizer=LassoTimeRegression(
         iterations=2000, l1_penalty=0.01, bandwidth=1.3,
-        kernel=kernel, use_prior=True, tau=700.0,
+        kernel=kernel, use_prior=True, tau=900.0,
         fit_intercept=False, prior_indices=[0]
     ),
     no_normalization_for_fixeds=True,
