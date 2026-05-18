@@ -253,31 +253,7 @@ class FixedCoefficientOptimizer:
         h_arr = []
         self.bandwidth_info_ = [None] * n_targets
 
-        # First, fit initial constant coefficients to get residuals for ICI
         if self.options.use_selector:
-            print("Computing initial residuals for bandwidth selection...")
-            
-            # Initial fit of constant coefficients (ignoring time-varying for now)
-            const_coefs_initial = np.zeros((n_targets, x_normed.shape[1]))
-            for k in range(n_targets):
-                fixed_idx = self.fixed_mask_[k]
-                tv_idx = self.tv_mask_[k]
-                const_idx = ~(fixed_idx | tv_idx)
-                
-                if np.any(const_idx):
-                    x_const = x_normed[:, const_idx]
-                    y_const = y[:, k].copy()
-                    
-                    # Remove fixed contributions if any
-                    if np.any(fixed_idx):
-                        y_const -= x_normed[:, fixed_idx] @ self.coef_[k, fixed_idx]
-                    
-                    # Fit constant coefficients
-                    opt_k = self.base_optimizer_class(**self.base_optimizer_params)
-                    opt_k.fit(x_const, y_const, sample_weight=sample_weight, **reduce_kws)
-                    const_coefs_initial[k, const_idx] = opt_k.coef_.flatten()
-            
-            # Now compute residuals and run ICI selector for each target
             for k in range(n_targets):
                 tv_idx = self.tv_mask_[k]
                 if not np.any(tv_idx):
@@ -285,23 +261,13 @@ class FixedCoefficientOptimizer:
                     self.bandwidth_info_[k] = None
                     continue
 
-                # Compute residual after removing fixed and constant contributions
-                y_residual = y[:, k].copy()
-                
-                # Remove fixed contributions
+                y_temp = y[:, k].copy()
                 fixed_idx = self.fixed_mask_[k]
                 if np.any(fixed_idx):
-                    y_residual -= x_normed[:, fixed_idx] @ self.coef_[k, fixed_idx]
-                
-                # Remove constant contributions
-                const_idx = ~(self.fixed_mask_[k] | tv_idx)
-                if np.any(const_idx):
-                    y_residual -= x_normed[:, const_idx] @ const_coefs_initial[k, const_idx]
-                
-                # Create temporary TV optimizer for bandwidth selection
+                    y_temp -= x_normed[:, fixed_idx] @ self.coef_[k, fixed_idx]
                 temp_tv = copy.deepcopy(self.tv_optimizer)
-                
-                # Handle hmax/hmin as lists
+                temp_tv.fit_all(x_normed[:, tv_idx], y_temp, t_list=self.t_)
+
                 if isinstance(self.options.hmax, (list, np.ndarray)):
                     if k < len(self.options.hmax):
                         hmax_k = self.options.hmax[k]
@@ -318,50 +284,29 @@ class FixedCoefficientOptimizer:
                 else:
                     hmin_k = self.options.hmin
 
-                # Select bandwidth using residuals
                 selector = OutSampleCVSelector(
-                    temp_tv, x_normed[:, tv_idx], y_residual, t=self.t_,
+                    temp_tv, x_normed[:, tv_idx], y_temp, t=self.t_,
                     h_min=hmin_k,
                     h_max=hmax_k,
-                    thresholdICI=self.options.thresholdICI, 
-                    subinterval=self.options.subinterval,
-                    timemeanICI=self.options.use_time_meanICI, 
-                    bootstrap=self.options.bootstrap
+                    thresholdICI=self.options.thresholdICI, subinterval = self.options.subinterval,
+                    timemeanICI=self.options.use_time_meanICI, bootstrap = self.options.bootstrap
                 )
-                best_h, _ = selector.optimize_all(method=self.options.selector_method)
+                if self.options.selector_method in ['loocv', 'loocv_exact']:
+                    best_h, best_score = selector.optimize_loocv(method='grid')
+                else:
+                    best_h, _ = selector.optimize_all(method=self.options.selector_method)
                 h_arr.append(best_h)
                 self.bandwidth_info_[k] = best_h
-                
                 if isinstance(best_h, np.ndarray):
                     print(f"Target {k}: selected variable bandwidth (mean={np.mean(best_h):.4f})")
                 else:
                     print(f"Target {k}: selected bandwidth = {best_h:.4f}")
-                
-                # Update initial constant coefficients with selected bandwidth info
-                # Re-fit constant coefficients with updated bandwidth information
-                if np.any(const_idx):
-                    x_const = x_normed[:, const_idx]
-                    y_const = y[:, k].copy()
-                    if np.any(fixed_idx):
-                        y_const -= x_normed[:, fixed_idx] @ self.coef_[k, fixed_idx]
-                    
-                    # Use the selected bandwidth for TV part if needed
-                    opt_k = self.base_optimizer_class(**self.base_optimizer_params)
-                    opt_k.fit(x_const, y_const, sample_weight=sample_weight, **reduce_kws)
-                    self.coef_[k, const_idx] = opt_k.coef_.flatten()
-        else:
-            # If no selector, initialize h_arr with None
-            for k in range(n_targets):
-                h_arr.append(None)
 
         self.t_models = [None] * n_targets
         self._prev_tv_coefs = [None] * n_targets
-        
-        # Main optimization loop
         for iteration in range(self.max_iter):
             max_change = 0.0
 
-            # Update constant coefficients
             for k in range(n_targets):
                 fixed_idx = self.fixed_mask_[k]
                 tv_idx = self.tv_mask_[k]
@@ -390,7 +335,6 @@ class FixedCoefficientOptimizer:
                 max_change = max(max_change, change)
                 self.coef_[k, const_idx] = new_coef_const
 
-            # Update time-varying coefficients
             for k in range(n_targets):
                 tv_idx = self.tv_mask_[k]
                 if not np.any(tv_idx):
@@ -423,9 +367,8 @@ class FixedCoefficientOptimizer:
                     tv_coefs_k = np.zeros((T, n_tv))
                 tv_biases_k = np.zeros(T)
                 print(f"Iter {iteration}, eq {k}: backfitting")
-                max_backfit_iters = 30
-                backfit_tol = 1e-6
-                
+                max_backfit_iters = 50
+                backfit_tol = 1e-8
                 for backfit_iter in range(max_backfit_iters):
                     max_coef_change = 0.0
                     for j, col in enumerate(tv_cols):
@@ -451,6 +394,8 @@ class FixedCoefficientOptimizer:
                         change = np.max(np.abs(new_coef - tv_coefs_k[:, j]))
                         max_coef_change = max(max_coef_change, change)
                         tv_coefs_k[:, j] = new_coef
+                        if backfit_iter == max_backfit_iters - 1:
+                            pass 
 
                     if max_coef_change < backfit_tol:
                         break
@@ -476,22 +421,24 @@ class FixedCoefficientOptimizer:
                 self.tv_coefs_[k] = tv_coefs_k
                 self.tv_biases_[k] = np.zeros(T) 
                 self.coef_[k, tv_idx] = 0.0 
-                
             if iteration == 0:
-                pass
+                    pass
             else:
-                max_tv_change = 0.0
-                for k in range(n_targets):
-                    if (self.tv_coefs_[k] is not None and 
-                        self._prev_tv_coefs[k] is not None and
-                        self.tv_coefs_[k].shape == self._prev_tv_coefs[k].shape):
-                        max_tv_change = max(max_tv_change, 
-                                        np.max(np.abs(self.tv_coefs_[k] - self._prev_tv_coefs[k])))
-                max_change = max(max_change, max_tv_change)
-                self._prev_tv_coefs = [c.copy() if c is not None else None for c in self.tv_coefs_]
+                    max_tv_change = 0.0
+                    for k in range(n_targets):
+                        if (self.tv_coefs_[k] is not None and 
+                            self._prev_tv_coefs[k] is not None and
+                            self.tv_coefs_[k].shape == self._prev_tv_coefs[k].shape):
+                            max_tv_change = max(max_tv_change, 
+                                            np.max(np.abs(self.tv_coefs_[k] - self._prev_tv_coefs[k])))
+                    max_change = max(max_change, max_tv_change)
+                    self._prev_tv_coefs = [c.copy() if c is not None else None for c in self.tv_coefs_]
+
 
             if max_change < 1e-8:
                 break
+                  
+        
 
         self._reconstruct_history([], initial_coef)
         if hasattr(self.base_optimizer, 'unbias') and self.base_optimizer.unbias:
@@ -570,6 +517,7 @@ class FixedCoefficientOptimizer:
                     tv_coef_interp = interp_w(t_new)
                     tv_bias_interp = interp_b(t_new)
                     tv_contrib = np.sum(x_normed[:, tv_idx] * tv_coef_interp, axis=1) + tv_bias_interp
+
 
             y_resid = y[:, i] - fixed_contrib - tv_contrib
             lr = LinearRegression(fit_intercept=False)
