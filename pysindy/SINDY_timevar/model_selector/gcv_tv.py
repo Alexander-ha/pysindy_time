@@ -1,5 +1,6 @@
 from scipy import optimize
 import numpy as np
+from sklearn.model_selection import TimeSeriesSplit
 
 class OutSampleCVSelector:
     def __init__(self, model, X, y, t=None, h_min=0.03, h_max=0.3, thresholdICI=1.0, subinterval=1, bootstrap=50, timemeanICI=False):
@@ -369,6 +370,48 @@ class OutSampleCVSelector:
             return np.inf
         return self.T * rss / (df ** 2)
 
+    def GasserVariance(self,y):
+        n = y.shape[0]
+        if n < 3:
+            return 0.0 
+        return 2/(3*(n-2))*np.sum(np.array([(y[i+1] - 0.5*(y[i]+y[i+2]))**2 for i in range(0, n-2)]))
+
+    def compute_rice(self,bandwidth):
+        if bandwidth < self.h_min or bandwidth > self.h_max:
+            return np.inf
+            
+        y_hat = np.zeros(self.T) 
+        trace_S = 0.0
+        for idx in range(self.T):
+            y_pred, s_tt = self._compute_single_pred_and_trace(idx, bandwidth)
+            y_hat[idx] = y_pred
+            trace_S += s_tt
+        n=self.T
+        RSS = (1/n) *  np.sum((self.y - y_hat) ** 2)
+        variance = self.GasserVariance(self.y)
+        Rh = RSS - variance + 2.0 * variance * (1.0 / n) * trace_S
+        return Rh
+
+    def _optimize_Rice_CV(self, h_grid=None):
+        if h_grid is None:
+            h_grid = np.linspace(self.h_min, self.h_max, 20)
+        h_grid = h_grid[(h_grid >= self.h_min) & (h_grid <= self.h_max)]
+        if len(h_grid) == 0:
+            raise ValueError("no available bandwidth in grid for RICE-CV")
+        n_features = self.n
+        n_times = len(self.model.t_values_)
+        rice_vals = []
+        for h in h_grid:
+            rice_val = self.compute_rice(h)
+            rice_vals.append((h,rice_val))
+            print(f"    h={h:.4f} -> RiceCV={rice_val:.6f}")
+            
+        import operator
+        
+        pairmin=min(rice_vals, key=operator.itemgetter(1))
+        return pairmin[0]
+
+
     def optimize_all(self, h_grid=None, method='grid', cv_type='gcv'):
         """
         Optimize bandwidth using different methods
@@ -433,6 +476,11 @@ class OutSampleCVSelector:
                 opt_bands = self.select_pilot_bandwidthICI(threshold=self.thresholdICI)
                 self.model.bandwidth = opt_bands
                 return opt_bands, 0.0
+
+        elif cv_type == "RiceCV": 
+            optband = self._optimize_Rice_CV(h_grid)
+            self.model.bandwidth = optband
+            return optband, 0.0         
         
         else:
             raise ValueError(f"Unknown cv_type: {cv_type}. Use 'gcv', 'loocv', 'loocv_exact', or 'ICI'")

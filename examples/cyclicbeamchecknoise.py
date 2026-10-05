@@ -40,12 +40,23 @@ print(f"x_clean shape: {x_clean.shape}")
 # ============================================================================
 # NOISE LEVELS TO TEST
 # ============================================================================
-noise_levels = [0.001, 0.005, 0.01, 0.025, 0.05]  # 0.1%, 0.5%, 1%, 2.5%, 5%
+noise_levels = [0.01, 0.05, 0.1, 0.2]
 
 # Store results
 rmse_results = {f'{int(level*100)}%': [] for level in noise_levels}
 r2_results = {f'{int(level*100)}%': [] for level in noise_levels}
 sparsity_results = {f'{int(level*100)}%': [] for level in noise_levels}
+
+def compute_derivative_fd(x_data, dt):
+    """Compute derivative using finite differences (central difference)"""
+    dx = np.zeros_like(x_data)
+    # Central difference for interior points
+    dx[1:-1, :] = (x_data[2:, :] - x_data[:-2, :]) / (2 * dt)
+    # Forward difference for first point
+    dx[0, :] = (x_data[1, :] - x_data[0, :]) / dt
+    # Backward difference for last point
+    dx[-1, :] = (x_data[-1, :] - x_data[-2, :]) / dt
+    return dx
 
 def evaluate_noise_level(noise_level, seed=42):
     """Evaluate model at given noise level"""
@@ -54,11 +65,8 @@ def evaluate_noise_level(noise_level, seed=42):
     # Add noise to states
     x_noisy = x_clean + noise_level * np.std(x_clean, axis=0) * np.random.randn(*x_clean.shape)
     
-    # Compute derivatives from noisy data with smoothing
-    x_dot = np.zeros_like(x_noisy)
-    for j in range(2):
-        spl = UnivariateSpline(t, x_noisy[:, j], s=len(t) * noise_level * 0.1)
-        x_dot[:, j] = spl.derivative()(t)
+    # Compute derivatives using finite differences (NO SPLINE)
+    x_dot = compute_derivative_fd(x_noisy, dt)
     
     x1, x2 = x_noisy[:, 0], x_noisy[:, 1]
     
@@ -132,7 +140,7 @@ def evaluate_noise_level(noise_level, seed=42):
     rmse = np.sqrt(mse_traj)
     
     # Sparsity accuracy
-    spurious_indices = [2, 3]  # x1² and x2² in both equations
+    spurious_indices = [2, 3]
     correct_zero = 0
     for idx in spurious_indices:
         if abs(coef_dx1[idx]) < 1e-6:
@@ -146,7 +154,7 @@ def evaluate_noise_level(noise_level, seed=42):
 # RUN EVALUATION FOR ALL NOISE LEVELS
 # ============================================================================
 print("\n" + "="*60)
-print("NOISE LEVEL EVALUATION")
+print("NOISE LEVEL EVALUATION (FINITE DIFFERENCES)")
 print("="*60)
 
 for noise_level in noise_levels:
@@ -168,7 +176,7 @@ rmse_means = [np.mean(rmse_results[f'{p}%']) for p in noise_pcts]
 ax1.plot(noise_pcts, rmse_means, 'o-', color='steelblue', linewidth=2, markersize=8)
 ax1.set_xlabel('Noise Level (%)', fontsize=12)
 ax1.set_ylabel('RMSE (Trajectory)', fontsize=12)
-ax1.set_title('RMSE vs Noise Level for Mathieu Equation', fontsize=14)
+ax1.set_title('RMSE vs Noise Level for Mathieu Equation (Finite Differences)', fontsize=14)
 ax1.grid(True, alpha=0.3)
 ax1.set_yscale('log')
 
@@ -176,28 +184,26 @@ for i, (pct, rmse) in enumerate(zip(noise_pcts, rmse_means)):
     ax1.annotate(f'{rmse:.2e}', (pct, rmse), textcoords="offset points", xytext=(0,10), ha='center', fontsize=9)
 
 plt.tight_layout()
-plt.savefig('mathieu_rmse_vs_noise.png', dpi=150, bbox_inches='tight')
-print("\n✓ Saved: mathieu_rmse_vs_noise.png")
+plt.savefig('mathieu_rmse_vs_noise_fd.png', dpi=150, bbox_inches='tight')
+print("\n✓ Saved: mathieu_rmse_vs_noise_fd.png")
 plt.show()
 
 # ============================================================================
 # DETAILED PLOTS FOR NOISE = 0.5% AND 5%
 # ============================================================================
 print("\n" + "="*60)
-print("DETAILED RECONSTRUCTION FOR 0.5% AND 5% NOISE")
+print("DETAILED RECONSTRUCTION FOR 5% AND 20% NOISE (FINITE DIFFERENCES)")
 print("="*60)
 
 fig2, axes = plt.subplots(2, 3, figsize=(15, 10))
 
 # Plot for 0.5% noise
-noise_05 = 0.005
+noise_05 = 0.05
 np.random.seed(42)
 x_noisy_05 = x_clean + noise_05 * np.std(x_clean, axis=0) * np.random.randn(*x_clean.shape)
 
-x_dot_05 = np.zeros_like(x_noisy_05)
-for j in range(2):
-    spl = UnivariateSpline(t, x_noisy_05[:, j], s=len(t) * noise_05 * 0.1)
-    x_dot_05[:, j] = spl.derivative()(t)
+# Compute derivative using finite differences (NO SPLINE)
+x_dot_05 = compute_derivative_fd(x_noisy_05, dt)
 
 Theta = np.column_stack([x_noisy_05[:, 0], x_noisy_05[:, 1], x_noisy_05[:, 0]**2, x_noisy_05[:, 1]**2])
 
@@ -211,7 +217,7 @@ init_conds = np.zeros((2, 4))
 init_conds[1, 0] = c_true(0)
 
 tv_optimizer = LassoTimeRegression(
-    iterations=2000, l1_penalty=0.05, bandwidth=1.0,
+    iterations=2000, l1_penalty=0.0, bandwidth=1.0,
     kernel=lambda u: 0.75 * (1 - u**2) * (np.abs(u) <= 1),
     fit_intercept=False, use_prior=True, tau=500.0, prior_indices=[0]
 )
@@ -237,14 +243,11 @@ sol_rec = solve_ivp(lambda tv, zv: reconstruct_ode(tv, zv, t, c_est_05), [t[0], 
 x_rec_05 = sol_rec.y.T
 
 # Plot for 5% noise
-noise_05 = 0.05
+noise_5 = 0.2
 np.random.seed(42)
-x_noisy_5 = x_clean + noise_05 * np.std(x_clean, axis=0) * np.random.randn(*x_clean.shape)
+x_noisy_5 = x_clean + noise_5 * np.std(x_clean, axis=0) * np.random.randn(*x_clean.shape)
 
-x_dot_5 = np.zeros_like(x_noisy_5)
-for j in range(2):
-    spl = UnivariateSpline(t, x_noisy_5[:, j], s=len(t) * noise_05 * 0.1)
-    x_dot_5[:, j] = spl.derivative()(t)
+x_dot_5 = compute_derivative_fd(x_noisy_5, dt)
 
 Theta = np.column_stack([x_noisy_5[:, 0], x_noisy_5[:, 1], x_noisy_5[:, 0]**2, x_noisy_5[:, 1]**2])
 
@@ -265,9 +268,9 @@ x_rec_5 = sol_rec.y.T
 
 # Plot x1 for 0.5% noise
 axes[0, 0].plot(t, x_clean[:, 0], 'k-', lw=2, label='True')
-axes[0, 0].plot(t, x_noisy_05[:, 0], 'b-', lw=0.5, alpha=0.5, label='Noisy (0.5%)')
+axes[0, 0].plot(t, x_noisy_05[:, 0], 'b-', lw=0.5, alpha=0.5, label='Noisy (5%)')
 axes[0, 0].plot(t, x_rec_05[:, 0], 'r--', lw=1.5, label='Reconstructed')
-axes[0, 0].set_title('$x_1$ reconstruction (0.5% noise)')
+axes[0, 0].set_title('$x_1$ reconstruction (5% noise)')
 axes[0, 0].set_xlabel('t')
 axes[0, 0].set_ylabel('$x_1$')
 axes[0, 0].legend()
@@ -275,9 +278,9 @@ axes[0, 0].grid(True, alpha=0.3)
 
 # Plot x2 for 0.5% noise
 axes[0, 1].plot(t, x_clean[:, 1], 'k-', lw=2, label='True')
-axes[0, 1].plot(t, x_noisy_05[:, 1], 'b-', lw=0.5, alpha=0.5, label='Noisy (0.5%)')
+axes[0, 1].plot(t, x_noisy_05[:, 1], 'b-', lw=0.5, alpha=0.5, label='Noisy (5%)')
 axes[0, 1].plot(t, x_rec_05[:, 1], 'r--', lw=1.5, label='Reconstructed')
-axes[0, 1].set_title('$x_2$ reconstruction (0.5% noise)')
+axes[0, 1].set_title('$x_2$ reconstruction (5% noise)')
 axes[0, 1].set_xlabel('t')
 axes[0, 1].set_ylabel('$x_2$')
 axes[0, 1].legend()
@@ -286,7 +289,7 @@ axes[0, 1].grid(True, alpha=0.3)
 # Phase portrait for 0.5% noise
 axes[0, 2].plot(x_clean[:, 0], x_clean[:, 1], 'k-', lw=2, label='True')
 axes[0, 2].plot(x_rec_05[:, 0], x_rec_05[:, 1], 'r--', lw=1.5, label='Reconstructed')
-axes[0, 2].set_title(f'Phase portrait (0.5% noise)\nRMSE = {np.sqrt(mean_squared_error(x_clean, x_rec_05)):.2e}')
+axes[0, 2].set_title(f'Phase portrait (5% noise)\nRMSE = {np.sqrt(mean_squared_error(x_clean, x_rec_05)):.2e}')
 axes[0, 2].set_xlabel('$x_1$')
 axes[0, 2].set_ylabel('$x_2$')
 axes[0, 2].legend()
@@ -295,9 +298,9 @@ axes[0, 2].axis('equal')
 
 # Plot x1 for 5% noise
 axes[1, 0].plot(t, x_clean[:, 0], 'k-', lw=2, label='True')
-axes[1, 0].plot(t, x_noisy_5[:, 0], 'b-', lw=0.5, alpha=0.5, label='Noisy (5%)')
+axes[1, 0].plot(t, x_noisy_5[:, 0], 'b-', lw=0.5, alpha=0.5, label='Noisy (20%)')
 axes[1, 0].plot(t, x_rec_5[:, 0], 'r--', lw=1.5, label='Reconstructed')
-axes[1, 0].set_title('$x_1$ reconstruction (5% noise)')
+axes[1, 0].set_title('$x_1$ reconstruction (20% noise)')
 axes[1, 0].set_xlabel('t')
 axes[1, 0].set_ylabel('$x_1$')
 axes[1, 0].legend()
@@ -305,9 +308,9 @@ axes[1, 0].grid(True, alpha=0.3)
 
 # Plot x2 for 5% noise
 axes[1, 1].plot(t, x_clean[:, 1], 'k-', lw=2, label='True')
-axes[1, 1].plot(t, x_noisy_5[:, 1], 'b-', lw=0.5, alpha=0.5, label='Noisy (5%)')
+axes[1, 1].plot(t, x_noisy_5[:, 1], 'b-', lw=0.5, alpha=0.5, label='Noisy (20%)')
 axes[1, 1].plot(t, x_rec_5[:, 1], 'r--', lw=1.5, label='Reconstructed')
-axes[1, 1].set_title('$x_2$ reconstruction (5% noise)')
+axes[1, 1].set_title('$x_2$ reconstruction (20% noise)')
 axes[1, 1].set_xlabel('t')
 axes[1, 1].set_ylabel('$x_2$')
 axes[1, 1].legend()
@@ -316,7 +319,7 @@ axes[1, 1].grid(True, alpha=0.3)
 # Phase portrait for 5% noise
 axes[1, 2].plot(x_clean[:, 0], x_clean[:, 1], 'k-', lw=2, label='True')
 axes[1, 2].plot(x_rec_5[:, 0], x_rec_5[:, 1], 'r--', lw=1.5, label='Reconstructed')
-axes[1, 2].set_title(f'Phase portrait (5% noise)\nRMSE = {np.sqrt(mean_squared_error(x_clean, x_rec_5)):.2e}')
+axes[1, 2].set_title(f'Phase portrait (20% noise)\nRMSE = {np.sqrt(mean_squared_error(x_clean, x_rec_5)):.2e}')
 axes[1, 2].set_xlabel('$x_1$')
 axes[1, 2].set_ylabel('$x_2$')
 axes[1, 2].legend()
@@ -324,15 +327,15 @@ axes[1, 2].grid(True, alpha=0.3)
 axes[1, 2].axis('equal')
 
 plt.tight_layout()
-plt.savefig('mathieu_noise_reconstruction.png', dpi=150, bbox_inches='tight')
-print("\n✓ Saved: mathieu_noise_reconstruction.png")
+plt.savefig('mathieu_noise_reconstruction_fd.png', dpi=150, bbox_inches='tight')
+print("\n✓ Saved: mathieu_noise_reconstruction_fd.png")
 plt.show()
 
 # ============================================================================
 # SUMMARY TABLE
 # ============================================================================
 print("\n" + "="*60)
-print("SUMMARY TABLE")
+print("SUMMARY TABLE (FINITE DIFFERENCES)")
 print("="*60)
 print(f"{'Noise':<10} {'RMSE':<12} {'R² c(t)':<12} {'Sparsity':<10}")
 print("-" * 50)

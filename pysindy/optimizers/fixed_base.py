@@ -294,7 +294,7 @@ class FixedCoefficientOptimizer:
                 if self.options.selector_method in ['loocv', 'loocv_exact']:
                     best_h, best_score = selector.optimize_loocv(method='grid')
                 else:
-                    best_h, _ = selector.optimize_all(method=self.options.selector_method)
+                    best_h, _ = selector.optimize_all(cv_type=self.options.selector_method)
                 h_arr.append(best_h)
                 self.bandwidth_info_[k] = best_h
                 if isinstance(best_h, np.ndarray):

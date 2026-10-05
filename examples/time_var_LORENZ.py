@@ -15,7 +15,7 @@ from pysindy.SINDY_timevar.regressors.time_regressor import LassoTimeRegression
 from pysindy.optimizers import STLSQ
 
 dt = 0.005
-t = np.arange(0, 5.0, dt)
+t = np.arange(0, 30.0, dt)
 
 sigma_true = lambda t: 10 + 2 * np.sin(3 * t)
 beta_true  = lambda t: 1 + 1/(1+np.exp(t))
@@ -26,25 +26,35 @@ def lorenz(t, z):
             x * (28 - zz) - y,
             x * y - beta_true(t) * zz]
 
-sol = solve_ivp(lorenz, [0, 5.0], [-8, 7, 27], t_eval=t)
+sol = solve_ivp(lorenz, [0, 30.0], [-8, 7, 27], t_eval=t)
 x_clean = sol.y.T
 
 np.random.seed(42)
 noise_level = 0.0
 x_noisy = x_clean + noise_level * np.std(x_clean, axis=0) * np.random.randn(*x_clean.shape)
+if noise_level !=0.0:
+    x_noisy_dot = np.zeros_like(x_noisy)
+    for j in range(3):
+        x_noisy_dot[:, j] = np.gradient(x_noisy[:, j], dt)
+    x, y, z = x_noisy[:, 0], x_noisy[:, 1], x_noisy[:, 2]
+    dotx=x_noisy_dot
+else:
+    t_spline = np.arange(0, 30.0, dt)
+    x_smooth = np.zeros_like(x_clean)
+    x_dot_smooth = np.zeros_like(x_clean)
+    for j in range(3):
+        spl = UnivariateSpline(t_spline, x_noisy[:, j], s=30.0 * noise_level * len(t) * np.std(x_noisy[:, j]))
+        x_smooth[:, j] = spl(t_spline)
+        x_dot_smooth[:, j] = spl.derivative()(t)
+    x, y, z = x_smooth[:, 0], x_smooth[:, 1], x_smooth[:, 2]
+    dotx=x_dot_smooth
 
-t_spline = np.arange(0, 5.0, dt)
-x_smooth = np.zeros_like(x_clean)
-x_dot_smooth = np.zeros_like(x_clean)
-for j in range(3):
-    spl = UnivariateSpline(t_spline, x_noisy[:, j], s=5.0 * noise_level * len(t) * np.std(x_noisy[:, j]))
-    x_smooth[:, j] = spl(t_spline)
-    x_dot_smooth[:, j] = spl.derivative()(t)
+
+
 
 print(f"Шум: {noise_level*100:.0f}% от std")
 print(f"SNR: {np.var(x_clean) / np.var(x_noisy - x_clean):.1f}")
 
-x, y, z = x_smooth[:, 0], x_smooth[:, 1], x_smooth[:, 2]
 
 Theta = np.column_stack([
     x, y, z,                 
@@ -93,24 +103,23 @@ init_conds[2, 2] = -beta_true(0)
 
 ici_options = {
     'use_selector': True,
-    'selector_method': 'ICI',
-    'use_time_meanICI': True,
+    'selector_method': 'RiceCV',  
+    'use_time_meanICI': True,    
     'smooth_coefs': True,
-    'hmin': 0.2,
-    'hmax': [0.5, 2.0, 1.5],
+    'hmin': 0.1,
+    'hmax': [1.5, 2.0, 1.5],  
     'thresholdICI': 3.0,
-    'bootstrap': 60
+    'bootstrap': 60       
 }
 
-
 model = FixedCoefficientOptimizer(
-    base_optimizer=STLSQ(threshold=1e-8, normalize_columns=False),
+    base_optimizer=STLSQ(threshold=0.95, normalize_columns=False),
     fixed_coefs=fixed_coefs,
     fixed_values=fixed_values,
     time_varying_coefs=time_varying_coefs,
     tv_optimizer=LassoTimeRegression(
-        iterations=2000, l1_penalty=0.01, bandwidth=1.3,
-        kernel=kernel, use_prior=True, tau=900.0,
+        iterations=2000, l1_penalty=0.0, bandwidth=1.3,
+        kernel=kernel, use_prior=True, tau=270.0,
         fit_intercept=False, prior_indices=[0]
     ),
     no_normalization_for_fixeds=True,
@@ -118,7 +127,7 @@ model = FixedCoefficientOptimizer(
     init_conds=init_conds,
     options=ici_options
 )
-model.fit(Theta, x_dot_smooth, t=t)
+model.fit(Theta, dotx, t=t)
 
 tv_coefs = [model.tv_coefs_[k] for k in range(3)]
 sigma_est = tv_coefs[0][:, 0]
