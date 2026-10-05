@@ -133,7 +133,21 @@ Sergey Safonov — head of lab and principal researcher, science advisor, profes
 ---
 
 ## Citation policy
+If you use this method or code in your research, please cite our work:
+
+```bibtex
+@unpublished{marukhin2025sindy,
+  title  = {SINDy-Based Method for Inverse Reconstruction of Time-Dependent Coefficients in Nonlinear ODE Systems},
+  author = {Marukhin, Alexander and Safonov, Sergey},
+  note   = {Manuscript submitted for publication},
+  year   = {2025},
+  institution = {Skolkovo Institute of Science and Technology}
+}
+```
+
 
 ---
 
 ## Contact us
+Via mail: Aleksandr.Marukhin@skoltech.ru
+Via telegram: @altergan1 (altergan if not available)
