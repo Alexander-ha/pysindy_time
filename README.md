@@ -63,7 +63,7 @@ docker run -e EXAMPLE=example.py pysindy-time
 ### Basic example
 $$
 \begin{cases}
-\dfrac{dx}{dt} = c(t) \cdot y \\[6pt]
+\dfrac{dx}{dt} = c(t) \cdot y \\
 \dfrac{dy}{dt} = c(t) \cdot x
 \end{cases}
 $$
@@ -84,7 +84,7 @@ python3 tv_simple_ode.py
 $$
 \begin{cases}
 \dot{x}_1 = x_2 \\
-\dot{x}_2 = -\omega_1^2 \bigl[(1 - \delta_s) - \delta_d \cos\theta t\bigr] x_1
+\dot{x}_2 = -\omega_1^2 [(1 - \delta_s) - \delta_d \cos\theta t] x_1
 \end{cases}
 $$
 To launch the example: 
