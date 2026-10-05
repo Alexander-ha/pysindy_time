@@ -84,7 +84,7 @@ python3 tv_simple_ode.py
 $$
 \begin{cases}
 \dot{x}_1 = x_2 \\
-\dot{x}_2 = -\omega_1^2 [(1 - \delta_s) - \delta_d \cos\theta t] x_1
+\dot{x}_2 = -\omega_1^2 ((1 - \delta_s) - \delta_d \cos\theta t) x_1
 \end{cases}
 $$
 To launch the example: 
