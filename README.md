@@ -1,5 +1,4 @@
-PySINDy: Time-robust
-=========
+# PySINDy: Time-robust
 This repository contains a brand new method for non-autonomous dynamic system recovery from data based on PySINDy package.
 Our method is focused on approaching dynamical systems that preserve non-autonomous structure:
 $$
