@@ -13,11 +13,10 @@ $$
 \hat{\Xi}_t = \arg\min_{\Xi \in \Omega}
 \begin{cases}
 \dfrac{1}{H} \left[ w_{t1} \bigl( \dot{X}_1 - \Theta(X_1^{\prime})\,\Xi \bigr)^2 + \tau \bigl( w_{t1} - w_1^{\text{init}} \bigr)^2 \right] \\[6pt]
-+ \dfrac{1}{H} \displaystyle\sum_{j=2}^T w_{tj} \bigl( \dot{X}_j - \Theta(X_j^{\prime})\,\Xi \bigr)^2
+\dfrac{1}{H} \displaystyle\sum_{j=2}^T w_{tj} \bigl( \dot{X}_j - \Theta(X_j^{\prime})\,\Xi \bigr)^2
 + \dfrac{\lambda_H}{H} \|\Xi\|_1
 \end{cases}
 $$
-
 The backfitting approach helps to reduce the impact of constant coefficients in coupled statement, and allows to separate dynamics by sequential substraction of impacts from constant and non-autonomous parts.
 
 > :warning: This project is under active development, for stable version please, visit original version: https://github.com/dynamicslab/pysindy.
