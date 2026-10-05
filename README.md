@@ -1,32 +1,34 @@
 # PySINDy: Time-robust
+
 This repository contains a brand new method for non-autonomous dynamic system recovery from data based on PySINDy package.
 Our method is focused on approaching dynamical systems that preserve non-autonomous structure:
+
 $$
 \dot{X} = A(t) X
 $$
 
 The algorithm is based on locally-weighted regression and backfitting approach:
-$$
-\hat{\Xi}_t = \arg\min_{\Xi \in \Omega} \left\{
-\begin{aligned}
-& \frac{1}{H} \left[ w_{t1} \bigl( \dot{X}_1 - \Theta(X_1')\,\Xi \bigr)^2 + \tau \bigl( w_{t1} - w_1^{\text{init}} \bigr)^2 \right] \\
-& \quad + \frac{1}{H} \sum_{j=2}^T w_{tj} \bigl( \dot{X}_j - \Theta(X_j')\,\Xi \bigr)^2
-+ \frac{\lambda_H}{H} \|\Xi\|_1
-\end{aligned}
-\right\}
-$$ 
-The backfitting approach helps to reduce the impact of constant coefficients in coupled statement, and allows to separate
-dynamics by sequential substraction of impacts from constant and non-autonomous parts.
 
-> :warning: This project is under active development, for stable version please, visit original version:
-https://github.com/dynamicslab/pysindy.
+$$
+\hat{\Xi}_t = \arg\min_{\Xi \in \Omega}
+\begin{cases}
+\dfrac{1}{H} \left[ w_{t1} \bigl( \dot{X}_1 - \Theta(X_1^{\prime})\,\Xi \bigr)^2 + \tau \bigl( w_{t1} - w_1^{\text{init}} \bigr)^2 \right] \\[6pt]
++ \dfrac{1}{H} \displaystyle\sum_{j=2}^T w_{tj} \bigl( \dot{X}_j - \Theta(X_j^{\prime})\,\Xi \bigr)^2
++ \dfrac{\lambda_H}{H} \|\Xi\|_1
+\end{cases}
+$$
+
+The backfitting approach helps to reduce the impact of constant coefficients in coupled statement, and allows to separate dynamics by sequential substraction of impacts from constant and non-autonomous parts.
+
+> :warning: This project is under active development, for stable version please, visit original version: https://github.com/dynamicslab/pysindy.
 
 ## Special installation procedure
+
 * Classical procedure:
 
 ```bash
-git clone git@github.com:Alexander-ha/pysindy_time.git  #(or git clone https://github.com/Alexander-ha/pysindy_time.git)
-cd pysindy_time 
+git clone git@github.com:Alexander-ha/pysindy_time.git  # (or git clone https://github.com/Alexander-ha/pysindy_time.git)
+cd pysindy_time
 python3 -m venv pysindy_env
 
 source pysindy_env/bin/activate
@@ -34,57 +36,55 @@ source pysindy_env/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 pip install -e .
-
 ```
 
-
 * Using venv and makefile (**Recommended**):
-``` bash
+
+```bash
 make install
 
 source pysindy_env/bin/activate
 
-make fixed_run #for example
+make fixed_run # for example
 ```
 
-
 * via Docker:
-``` bash
+
+```bash
 docker build -t pysindy-time .
 
 docker run pysindy-time
 
 docker run -e EXAMPLE=example.py pysindy-time
 ```
-________________________________
-## Examples: 
-### Basic example:
 
-### Mathieu equation:
+---
 
-### Non-autonomous Lorenz-system recovery:
+## Examples
 
+### Basic example
 
+### Mathieu equation
 
-________________________________
+### Non-autonomous Lorenz-system recovery
 
-**PySINDy** is a package for system identification, primarily revolving around the method of
-Sparse Identification of Nonlinear Dynamical systems (SINDy) method introduced
-in Brunton et al. (2016a).
-It also includes other methods from related literature.
+---
 
-*System identification* refers to the process of using measurement data to infer the governing dynamics.
-Once discovered, these equations can make predictions about future states, can inform control inputs, or can enable the theoretical study using analytical techniques.
-The resulting models are inherently *interpretable* and *generalizable*.
-________________________________
-## Authors:
-Alexander Marukhin - research engineer and developer of the method (Skoltech, INM RAS).
-Sergey Safonov - head of lab and principal researcher, science advisor, professor (Skoltech).
-________________________________
-## Citation policy:
+**PySINDy** is a package for system identification, primarily revolving around the method of Sparse Identification of Nonlinear Dynamical systems (SINDy) method introduced in Brunton et al. (2016a). It also includes other methods from related literature.
 
-________________________________
-## Contact us:
+*System identification* refers to the process of using measurement data to infer the governing dynamics. Once discovered, these equations can make predictions about future states, can inform control inputs, or can enable the theoretical study using analytical techniques. The resulting models are inherently *interpretable* and *generalizable*.
 
+---
 
+## Authors
 
+Alexander Marukhin — research engineer and developer of the method (Skoltech, INM RAS).
+Sergey Safonov — head of lab and principal researcher, science advisor, professor (Skoltech).
+
+---
+
+## Citation policy
+
+---
+
+## Contact us
