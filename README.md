@@ -9,6 +9,10 @@ $$
 
 The algorithm is based on locally-weighted regression and backfitting approach:
 
+<p align="center">
+  <img src="docs/pstime.png" alt="Phase portrait" width="60%">
+</p>
+
 
 $$
 \hat{\Xi}_t = \arg\min_{\Xi \in \Omega}
@@ -74,6 +78,17 @@ $$
 c(t) = \frac{1}{1 + e^{-(t-5)}}
 $$
 
+<p align="center">
+  <img src="docs/csimprecon.png" alt="Figure a" width="45%">
+  &nbsp;&nbsp;&nbsp;
+  <img src="docs/csimphase.png" alt="Figure b" width="45%">
+</p>
+
+<p align="center">
+  <em>Figure 2. (a) Reconstruction of c(t); (b) Phase portrait.</em>
+</p>
+
+
 To launch the example: 
 ```bash
 cd examples/
@@ -93,6 +108,16 @@ To launch the example:
 cd examples/
 python3 cyclicbeamcheck.py #or cyclicbeamchecknoise.py for noise robustness test
 ```
+
+<p align="center">
+  <img src="docs/5noise.png" alt="Figure a" width="45%">
+  &nbsp;&nbsp;&nbsp;
+  <img src="docs/20noise.png" alt="Figure b" width="45%">
+</p>
+
+<p align="center">
+  <em>Figure 2. (a) mathieu recon. with 5 percent noise (b) mathieu recon. with 20 percent noise</em>
+</p>
 
 
 ### Non-autonomous Lorenz-system recovery
@@ -115,6 +140,17 @@ $$
 cd examples/
 python3 time_var_LORENZ.py
 ```
+<p align="center">
+  <img src="docs/goodlorenz1.png" alt="Figure a" width="30%">
+  &nbsp;&nbsp;
+  <img src="docs/goodlorenz2.png" alt="Figure b" width="30%">
+  &nbsp;&nbsp;
+  <img src="docs/goodlorenz3.png" alt="Figure c" width="30%">
+</p>
+
+<p align="center">
+  <em>Figure 3. (a) Coefficient c(t); (b) Trajectory; (c) Phase portrait.</em>
+</p>
 
 
 ---
