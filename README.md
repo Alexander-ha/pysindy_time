@@ -12,7 +12,7 @@ The algorithm is based on locally-weighted regression and backfitting approach:
 
 $$
 \hat{\Xi}_t = \arg\min_{\Xi \in \Omega}
-\dfrac{1}{H} w_{t1} \left[ ( \dot{X}_1 - \Theta(X_1')\,\Xi )^2 + \tau ( w_{t1} - w_1^{\text{init}} )^2 \right] + \dfrac{1}{H} \sum_{j=2}^{T} w_{tj} ( \dot{X}_j - \Theta(X_j')\,\Xi )^2 + \dfrac{\lambda_H}{H} \lVert \Xi \rVert_1
+\dfrac{1}{H} w_{t1} \left[ ( \dot{X}_1 - \Theta(X_1')\,\Xi )^2 + \tau ( w_{t1} - w_1^{\text{init}} )^2  + \dfrac{1}{H} \sum_{j=2}^{T} w_{tj} ( \dot{X}_j - \Theta(X_j')\,\Xi )^2 + \dfrac{\lambda_H}{H} \lVert \Xi \rVert_1\right]
 $$
 
 The backfitting approach helps to reduce the impact of constant coefficients in coupled statement, and allows to separate dynamics by sequential substraction of impacts from constant and non-autonomous parts.
@@ -59,11 +59,62 @@ docker run -e EXAMPLE=example.py pysindy-time
 
 ## Examples
 
+
 ### Basic example
+$$
+\begin{cases}
+\dfrac{dx}{dt} = c(t) \cdot y \\[6pt]
+\dfrac{dy}{dt} = c(t) \cdot x
+\end{cases}
+$$
+
+where
+
+$$
+c(t) = \frac{1}{1 + e^{-(t-5)}}
+$$
+
+To launch the example: 
+```bash
+cd examples/
+python3 tv_simple_ode.py
+```
 
 ### Mathieu equation
+$$
+\begin{cases}
+\dot{x}_1 = x_2 \\
+\dot{x}_2 = -\omega_1^2 \bigl[(1 - \delta_s) - \delta_d \cos\theta t\bigr] x_1
+\end{cases}
+$$
+To launch the example: 
+```bash
+cd examples/
+python3 cyclicbeamcheck.py #or cyclicbeamchecknoise.py for noise robustness test
+```
+
 
 ### Non-autonomous Lorenz-system recovery
+$$
+\begin{cases}
+\dot{x} = \sigma(t) (y - x) \\
+\dot{y} = x(\rho - z) - y \\
+\dot{z} = xy - \beta(t) z
+\end{cases}
+$$
+
+where
+
+$$
+\sigma(t) = 10 + 2\sin(3t), \qquad
+\beta(t) = 1 + \frac{1}{1 + e^{t}}, \qquad
+\rho = 28
+$$
+```bash
+cd examples/
+python3 time_var_LORENZ.py
+```
+
 
 ---
 
