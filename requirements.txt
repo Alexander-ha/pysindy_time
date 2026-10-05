@@ -34,7 +34,6 @@ ptyprocess==0.7.0
 pure_eval==0.2.3
 Pygments==2.19.2
 pyparsing==3.3.2
-pysindy @ file:///root/pysindy
 python-dateutil==2.9.0.post0
 pyzmq==27.1.0
 requests==2.32.5

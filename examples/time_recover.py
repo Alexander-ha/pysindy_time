@@ -21,7 +21,7 @@ import itertools
 
 dt = 0.001
 t = np.arange(0, 1, dt)
-N_train = int(len(t) * 0.3)
+N_train = int(len(t) * 0.5)
 N_val = int(len(t) * 0.3)
 N_test = len(t) - N_train - N_val
 
@@ -30,7 +30,7 @@ t_val = t[N_train:N_train+N_val]
 t_test = t[N_train+N_val:]
 
 def time_coeff(t):
-    return 1 + 1 / (1 + np.exp(-70 * (t - 0.5)))
+    return 1 + 1 / (1 + np.exp(-10 * (t - 0.5)))
 
 coeff_true = time_coeff(t)
 
@@ -75,13 +75,13 @@ for j in range(n_features):
     if j != 2:
         fixed_mask[1, j] = True
 
+
 epanechnikov = lambda u: 0.75 * (1 - u**2) * (np.abs(u) <= 1)
 
 param_grid = {
     'bandwidth': [0.01, 0.05, 0.1, 0.2, 0.5],
     'l1_penalty': [0.0001, 0.001, 0.01, 0.1],
-    'iterations': [500],
-    'learning_rate': [ 0.1, 0.2]
+    'iterations': [1000],
 }
 
 best_score = -np.inf
@@ -91,13 +91,12 @@ best_model = None
 print("Grid Search...")
 total_combinations = len(list(ParameterGrid(param_grid)))
 current = 0
-'''
+
 for params in ParameterGrid(param_grid):
     current += 1
     print(f"{current}/{total_combinations}: {params}")
     
     tv_opt = LassoTimeRegression(
-        learning_rate=params['learning_rate'],
         iterations=params['iterations'],
         l1_penalty=params['l1_penalty'],
         bandwidth=params['bandwidth'],
@@ -152,7 +151,7 @@ for params in ParameterGrid(param_grid):
 
 print(f"\nbest params: {best_params}")
 print(f"N-MSE BEST SCORE: {best_score:.6f}")
-'''
+
 print("\nFinal model learning with new h-params...")
 
 x_train_full = x_data[:N_train+N_val, :]
@@ -160,14 +159,7 @@ t_train_full = t[:N_train+N_val]
 x_dot_train_full = diff._differentiate(x_train_full, t_train_full)
 Theta_train_full = library.transform(x_train_full)
 
-tv_opt_best = LassoTimeRegression(
-    learning_rate=0.001,
-    iterations=2000,
-    l1_penalty=1e-4,
-    bandwidth=0.8,
-    kernel=epanechnikov
-)
-
+tv_opt_best = LassoTimeRegression(**best_params, kernel=epanechnikov)
 base_opt = STLSQ(threshold=1e-8, normalize_columns=False)
 
 final_model = FixedCoefficientOptimizer(
@@ -179,7 +171,14 @@ final_model = FixedCoefficientOptimizer(
     no_normalization_for_fixeds=True
 )
 
+
 final_model.fit(Theta_train_full, x_dot_train_full, t=t_train_full)
+print("Shape of coef_:", final_model.coef_.shape)
+print("Fixed mask (0):", final_model.fixed_mask_[0])
+print("Fixed values (0):", final_model.fixed_values_[0])
+print("Coef after fit (0):", final_model.coef_[0])
+print("TV mask (0):", final_model.tv_mask_[0])
+
 print("\n" + "="*50)
 print("DIAGNOSTICS")
 print("="*50)
