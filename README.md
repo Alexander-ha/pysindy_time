@@ -12,11 +12,9 @@ The algorithm is based on locally-weighted regression and backfitting approach:
 
 $$
 \hat{\Xi}_t = \arg\min_{\Xi \in \Omega}
-\begin{cases}
 \dfrac{1}{H} \left[ w_{t1} ( \dot{X}_1 - \Theta(X_1^{\prime})\,\Xi )^2 + \tau ( w_{t1} - w_1^{\text{init}} )^2 \right] \\
 \dfrac{1}{H} \sum_{j=2}^T w_{tj} ( \dot{X}_j - \Theta(X_j^{\prime})\,\Xi )^2
 + \dfrac{\lambda_H}{H} \|\Xi\|_1
-\end{cases}
 $$
 
 The backfitting approach helps to reduce the impact of constant coefficients in coupled statement, and allows to separate dynamics by sequential substraction of impacts from constant and non-autonomous parts.
