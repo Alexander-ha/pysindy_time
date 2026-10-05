@@ -149,7 +149,7 @@ python3 time_var_LORENZ.py
 </p>
 
 <p align="center">
-  <em>Figure 3. (a) Coefficient c(t); (b) Trajectory; (c) Phase portrait.</em>
+  <em>Figure 3. (a) Coefficient 1 time-varying reconsturction; (b) Coefficient 2 time-varying reconsturction; (c) Phase portrait in x-z plane.</em>
 </p>
 
 
