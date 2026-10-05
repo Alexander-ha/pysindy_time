@@ -15,7 +15,9 @@ $$
 
 
 $$
-
+$$
+\left( ( \dot{X}_1 - \Theta(X_1')\,\Xi )^2 + \tau ( w_{t1} - w_1^{\text{init}} )^2 \right)
+$$
 The backfitting approach helps to reduce the impact of constant coefficients in coupled statement, and allows to separate dynamics by sequential substraction of impacts from constant and non-autonomous parts.
 
 > :warning: This project is under active development, for stable version please, visit original version: https://github.com/dynamicslab/pysindy.
