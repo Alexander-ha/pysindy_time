@@ -81,7 +81,7 @@ $$
 <p align="center">
   <img src="docs/csimprecon.png" alt="Figure a" width="45%">
   &nbsp;&nbsp;&nbsp;
-  <img src="docs/csimphase.png" alt="Figure b" width="45%">
+  <img src="docs/csimpphase.png" alt="Figure b" width="45%">
 </p>
 
 <p align="center">
