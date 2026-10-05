@@ -42,6 +42,8 @@ coverage.xml
 docs/api
 docs/_build
 
+*.png
+
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 .DS_Store
