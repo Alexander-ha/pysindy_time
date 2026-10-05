@@ -16,7 +16,7 @@ from pysindy.optimizers import STLSQ
 
 case = 1
 
-dt = 0.005
+dt = 0.05
 t = np.arange(0, 10.0, dt)
 
 c_true = lambda t: 1 / (1 + np.exp(-(t - 5)))

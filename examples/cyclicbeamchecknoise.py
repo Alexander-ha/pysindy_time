@@ -137,7 +137,8 @@ def evaluate_noise_level(noise_level, seed=42):
     x_rec = sol_rec.y.T
     
     mse_traj = mean_squared_error(x_clean, x_rec)
-    rmse = np.sqrt(mse_traj)
+    rmse = np.sqrt(mean_squared_error(c_true(t), c_fitted))
+
     
     # Sparsity accuracy
     spurious_indices = [2, 3]
