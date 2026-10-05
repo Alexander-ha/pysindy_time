@@ -12,9 +12,8 @@ The algorithm is based on locally-weighted regression and backfitting approach:
 
 $$
 \hat{\Xi}_t = \arg\min_{\Xi \in \Omega}\dfrac{1}{H} w_{t1}\\
-
-
 $$
+
 $$
 \left( ( \dot{X}_1 - \Theta(X_1')\,\Xi )^2 + \tau ( w_{t1} - w_1^{\text{init}} )^2 \right)
 $$
