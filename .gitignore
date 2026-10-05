@@ -49,6 +49,8 @@ docs/_build
 
 *.pyc
 
+*.png
+
 *.sublime*
 
 .hypothesis/
