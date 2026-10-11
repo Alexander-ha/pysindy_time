@@ -1,10 +1,10 @@
 # PySINDy: Time-robust
 
 This repository contains a brand new method for non-autonomous dynamic system recovery from data based on PySINDy package.
-Our method is focused on approaching dynamical systems that preserve non-autonomous structure:
+Our method is focused on approaching dynamical systems that preserve non-autonomous and non-linear structure:
 
 $$
-\dot{X} = A(t) X
+\dot{X} = A(t) \Theta(X)
 $$
 
 The algorithm is based on locally-weighted regression and backfitting approach:
